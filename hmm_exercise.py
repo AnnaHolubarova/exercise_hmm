@@ -209,6 +209,82 @@ class HMM:
             path.append(back[position][path[-1]])
         path.reverse()
         return "".join(path), best_probability
+    
+    #Task 3
+
+    def forward(self, x):
+        """Return the log probability of an observation sequence using the forward algorithm."""
+        if not x:
+            return 0.0
+
+        f = [{state: self.log_pi[state] + self.log_e[state][x[0]] for state in self.states}]
+
+        for symbol in x[1:]:
+            f_row = {}
+            for state in self.states:
+                log_sum_prob = -math.inf
+                for previous in self.states:
+                    log_sum_prob = log_sum(log_sum_prob, f[-1][previous] + self.log_a[previous][state])
+                f_row[state] = log_sum_prob + self.log_e[state][symbol]
+            f.append(f_row)
+
+        total_log_probability = -math.inf
+        for state in self.states:
+            total_log_probability = log_sum(total_log_probability, f[-1][state])
+
+        return total_log_probability
+
+    def backward(self, x):
+        """Return the log probability of an observation sequence using the backward algorithm."""
+        if not x:
+            return 0.0
+
+        b = [{state: 0.0 for state in self.states}]
+
+        for symbol in reversed(x[1:]):
+            b_row = {}
+            for state in self.states:
+                log_sum_prob = -math.inf
+                for next_state in self.states:
+                    log_sum_prob = log_sum(log_sum_prob, self.log_a[state][next_state] + self.log_e[next_state][symbol] + b[-1][next_state])
+                b_row[state] = log_sum_prob
+            b.append(b_row)
+
+        b.reverse()
+
+        total_log_probability = -math.inf
+        for state in self.states:
+            total_log_probability = log_sum(total_log_probability, self.log_pi[state] + self.log_e[state][x[0]] + b[0][state])
+
+        return total_log_probability
+
+    def posterior(self, x):
+        """Return the posterior probabilities of states at each position in an observation sequence."""
+        if not x:
+            return []
+
+        log_forward = self.forward(x)
+        log_backward = self.backward(x)
+        total_log_probability = log_forward  # or log_backward, they should be equal
+
+        posterior_probs = []
+        for position in range(len(x)):
+            position_probs = {}
+            for state in self.states:
+                log_prob = self.log_pi[state] + self.log_e[state][x[position]] + log_backward[position][state]
+                position_probs[state] = 2 ** (log_prob - total_log_probability)
+            posterior_probs.append(position_probs)
+
+        return posterior_probs
+
+    def posterior_path(self, x):
+        """Return the most likely path based on posterior probabilities."""
+        posterior_probs = self.posterior(x)
+        path = []
+        for position_probs in posterior_probs:
+            best_state = max(position_probs, key=position_probs.get)
+            path.append(best_state)
+        return "".join(path)
 
 #print(read_model("weather_model.json").viterbi("ssrssrrrss"))
 #print(read_model("weather_model.json").log_joint("ssrssrrrss", "HHHHHLLLHH"))
@@ -265,6 +341,5 @@ def main():
     fasta_paths = args.fasta_files or [default_dir / "sequences.fasta"]
     run_fasta(fasta_paths, args.model)
 
-
-if __name__ == "__main__":
-    main()
+#if __name__ == "__main__":
+#    main()

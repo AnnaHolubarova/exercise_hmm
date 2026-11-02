@@ -2,6 +2,7 @@
 import json
 import itertools
 import math
+from Bio import SeqIO
 
 
 def log2(p):
@@ -125,3 +126,88 @@ class HMM:
 
 #print(read_model("weather_model.json").joint_probability("sr", "HL"))
 #print(read_model("weather_model.json").brute_force("ssrssrrrss"))
+
+# Task 2
+
+    def viterbi(self, x):
+        """Return the most likely path and its log2 probability."""
+        if not x:
+            return "", 0.0
+
+        v = [
+            {state: self.log_pi[state] + self.log_e[state][x[0]] for state in self.states}
+        ]
+        back = [{}]
+
+        for symbol in x[1:]:
+            v_row = {}
+            back_row = {}
+            for state in self.states:
+                best_previous = self.states[0]
+                best_score = v[-1][best_previous] + self.log_a[best_previous][state]
+                for previous in self.states[1:]:
+                    score = v[-1][previous] + self.log_a[previous][state]
+                    if score > best_score:
+                        best_score = score
+                        best_previous = previous
+                v_row[state] = best_score + self.log_e[state][symbol]
+                back_row[state] = best_previous
+            v.append(v_row)
+            back.append(back_row)
+
+        best_state = self.states[0]
+        best_score = v[-1][best_state]
+        for state in self.states[1:]:
+            if v[-1][state] > best_score:
+                best_state = state
+                best_score = v[-1][state]
+
+        path = [best_state]
+        for position in range(len(x) - 1, 0, -1):
+            path.append(back[position][path[-1]])
+        path.reverse()
+        return "".join(path), best_score
+
+    def viterbi_plain(self, x):
+        """Return the most likely path and probability using plain products."""
+        if not x:
+            return "", 1.0
+
+        v = [
+            {state: self.pi[state] * self.e[state][x[0]] for state in self.states}
+        ]
+        back = [{}]
+
+        for symbol in x[1:]:
+            v_row = {}
+            back_row = {}
+            for state in self.states:
+                best_previous = self.states[0]
+                best_probability = v[-1][best_previous] * self.a[best_previous][state]
+                for previous in self.states[1:]:
+                    probability = v[-1][previous] * self.a[previous][state]
+                    if probability > best_probability:
+                        best_probability = probability
+                        best_previous = previous
+                v_row[state] = best_probability * self.e[state][symbol]
+                back_row[state] = best_previous
+            v.append(v_row)
+            back.append(back_row)
+
+        best_state = self.states[0]
+        best_probability = v[-1][best_state]
+        for state in self.states[1:]:
+            if v[-1][state] > best_probability:
+                best_state = state
+                best_probability = v[-1][state]
+
+        path = [best_state]
+        for position in range(len(x) - 1, 0, -1):
+            path.append(back[position][path[-1]])
+        path.reverse()
+        return "".join(path), best_probability
+
+#print(read_model("weather_model.json").viterbi("ssrssrrrss"))
+#print(read_model("weather_model.json").log_joint("ssrssrrrss", "HHHHHLLLHH"))
+
+#print(read_model("weather_model.json").viterbi_plain("ssrssrrrss"))

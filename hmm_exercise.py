@@ -1,7 +1,10 @@
 # Task 1
+import argparse
 import json
 import itertools
 import math
+from pathlib import Path
+
 from Bio import SeqIO
 
 
@@ -210,4 +213,58 @@ class HMM:
 #print(read_model("weather_model.json").viterbi("ssrssrrrss"))
 #print(read_model("weather_model.json").log_joint("ssrssrrrss", "HHHHHLLLHH"))
 
-#print(read_model("weather_model.json").viterbi_plain("ssrssrrrss"))
+def run_fasta(fasta_paths, model_path):
+    """Compare log-space and plain-probability Viterbi on FASTA records."""
+    model = read_model(model_path)
+    for fasta_path in fasta_paths:
+        for record in SeqIO.parse(fasta_path, "fasta"):
+            sequence = str(record.seq)
+            log_path, log_score = model.viterbi(sequence)
+            plain_path, plain_probability = model.viterbi_plain(sequence)
+            first_difference = next(
+                (
+                    index + 1
+                    for index, (log_state, plain_state) in enumerate(
+                        zip(log_path, plain_path)
+                    )
+                    if log_state != plain_state
+                ),
+                None,
+            )
+            bits_per_position = -log_score / len(sequence) if sequence else 0.0
+            print(
+                f"{fasta_path}:{record.id} "
+                f"length={len(sequence)} "
+                f"log_score={log_score:.3f} "
+                f"bits_per_position={bits_per_position:.3f} "
+                f"plain_probability={plain_probability:.6g} "
+                f"paths_match={log_path == plain_path} "
+                f"first_difference={first_difference}"
+            )
+
+
+def main():
+    """Run both Viterbi implementations on one or more FASTA files."""
+    default_dir = Path(__file__).resolve().parent
+    parser = argparse.ArgumentParser(
+        description="Compare log-space and plain-probability HMM Viterbi."
+    )
+    parser.add_argument(
+        "fasta_files",
+        nargs="*",
+        type=Path,
+        help="FASTA files to decode (default: sequences.fasta)",
+    )
+    parser.add_argument(
+        "--model",
+        type=Path,
+        default=default_dir / "toy_model.json",
+        help="JSON HMM model (default: toy_model.json)",
+    )
+    args = parser.parse_args()
+    fasta_paths = args.fasta_files or [default_dir / "sequences.fasta"]
+    run_fasta(fasta_paths, args.model)
+
+
+if __name__ == "__main__":
+    main()
